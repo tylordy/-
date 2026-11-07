@@ -1252,9 +1252,28 @@ const REVIEW_URL='https://jsonblob.com/api/jsonBlob/01a1b587-0fe5-754c-a75e-e7c3
 let revStars=0,revReturn='title';
 function revLocal(){try{return JSON.parse(localStorage.getItem('occ-reviews')||'[]');}catch(e){return[];}}
 function revLocalAdd(r){try{const l=revLocal();l.push(r);localStorage.setItem('occ-reviews',JSON.stringify(l.slice(-200)));}catch(e){}}
-async function revLoad(){if(!REVIEW_URL)return revLocal();const r=await fetch(REVIEW_URL,{headers:{Accept:'application/json'},cache:'no-store'});if(!r.ok)throw new Error(r.status);const j=await r.json();return Array.isArray(j.reviews)?j.reviews:[];}
-async function revSave(rv){revLocalAdd(rv);if(!REVIEW_URL)return;const list=await revLoad();list.push(rv);
-  const w=await fetch(REVIEW_URL,{method:'PUT',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({reviews:list.slice(-1000)})});if(!w.ok)throw new Error(w.status);}
+// second channel that is known to allow browser requests: ntfy.sh (also lets the owner get phone notifications)
+const NTFY='https://ntfy.sh/occupancy-rev-k7m2q9x4tz';let revErr='';
+const errTxt=e=>String(e&&e.message||e).slice(0,60);
+async function revBlobGet(){const r=await fetch(REVIEW_URL,{headers:{Accept:'application/json'},cache:'no-store'});if(!r.ok)throw new Error('box '+r.status);const j=await r.json();return Array.isArray(j.reviews)?j.reviews:[];}
+async function revNtfyGet(){const r=await fetch(NTFY+'/json?poll=1&since=all',{cache:'no-store'});if(!r.ok)throw new Error('ntfy '+r.status);const out=[];
+  for(const line of (await r.text()).split('\n')){if(!line.trim())continue;let m;try{m=JSON.parse(line);}catch(e){continue;}if(m.event!=='message'||!m.message)continue;
+    const[first,...rest]=m.message.split('\n');const s=(first.match(/★/g)||[]).length;const n=first.replace(/[★☆]/g,'').trim();
+    const dt=new Date((m.time||0)*1000);const d=new Date(dt.getTime()-dt.getTimezoneOffset()*6e4).toISOString().slice(0,16).replace('T',' ');
+    out.push({id:(m.tags&&m.tags[0])||m.id,s,n:n==='匿名'?'':n,t:rest.join('\n'),d});}
+  return out;}
+async function revLoad(){if(!REVIEW_URL)return revLocal();const res=await Promise.allSettled([revBlobGet(),revNtfyGet()]);
+  revErr=res.filter(x=>x.status==='rejected').map(x=>errTxt(x.reason)).join(' / ');
+  if(res.every(x=>x.status==='rejected'))throw new Error(revErr);
+  const all=[],seen=new Set();for(const x of res)if(x.status==='fulfilled')for(const r of x.value){const k=r.id||[r.s,r.n,r.t,r.d].join('|');if(seen.has(k))continue;seen.add(k);all.push(r);}
+  all.sort((a,b)=>String(a.d).localeCompare(String(b.d)));return all;}
+async function revSave(rv){rv.id=rv.id||Math.random().toString(36).slice(2,10);revLocalAdd(rv);if(!REVIEW_URL)return;
+  const msg='★'.repeat(rv.s)+'☆'.repeat(5-rv.s)+' '+(rv.n||'匿名')+(rv.t?'\n'+rv.t:'');
+  const res=await Promise.allSettled([
+    fetch(NTFY+'?title='+encodeURIComponent('佔據 新評論 '+rv.s+'★')+'&tags='+rv.id,{method:'POST',body:msg}).then(r=>{if(!r.ok)throw new Error('ntfy '+r.status);}),
+    (async()=>{const list=await revBlobGet();list.push(rv);const w=await fetch(REVIEW_URL,{method:'PUT',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({reviews:list.slice(-1000)})});if(!w.ok)throw new Error('box '+w.status);})()]);
+  revErr=res.filter(x=>x.status==='rejected').map(x=>errTxt(x.reason)).join(' / ');
+  if(res.every(x=>x.status==='rejected'))throw new Error(revErr);}
 function revPaint(){$('stars').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v<=revStars));}
 function openReview(from){revReturn=from;revStars=0;revPaint();$('revText').value='';$('revStatus').textContent='';$('revSend').disabled=false;try{$('revName').value=localStorage.getItem('occ-name')||'';}catch(e){}showCard('review');try{document.exitPointerLock();}catch(_){}}
 $('stars').querySelectorAll('button').forEach(b=>b.onclick=()=>{revStars=+b.dataset.v;revPaint();$('revStatus').textContent='';});
@@ -1263,11 +1282,11 @@ $('revSend').onclick=async()=>{if(!revStars){$('revStatus').textContent='請先�
   const rv={s:revStars,n:($('revName').value||'').trim().slice(0,16),t:($('revText').value||'').trim().slice(0,300),d:new Date().toISOString().slice(0,16).replace('T',' ')};
   $('revSend').disabled=true;$('revStatus').textContent='送出中⋯';
   try{await revSave(rv);$('revStatus').textContent='謝謝你的評論！';setTimeout(()=>{if(!$('review').hidden)showCard(revReturn);},1400);}
-  catch(e){$('revStatus').textContent='評論送不出去，請檢查網路後再試一次。';$('revSend').disabled=false;}};
+  catch(e){$('revStatus').textContent='評論送不出去，請稍後再試一次。（'+errTxt(e)+'）';$('revSend').disabled=false;}};
 // secret code on the home page: type 3645 (or tap the big title three times on a phone)
 const REV_CODE='3645';let codeBuf='',titleTaps=[];
 async function openReviews(){showCard('reviews');const sum=$('revSummary'),list=$('revList');sum.textContent='載入中⋯';list.innerHTML='';
-  let rs;try{rs=await revLoad();}catch(e){sum.textContent='讀不到評論，請檢查網路後按「重新整理」。';return;}
+  let rs;try{rs=await revLoad();}catch(e){sum.textContent='讀不到評論，請稍後按「重新整理」。（'+errTxt(e)+'）';return;}
   if(!rs.length){sum.textContent=REVIEW_URL?'還沒有人留下評論。':'評論箱還沒連上網路，目前只看得到這台裝置上的評論。';return;}
   const avg=rs.reduce((a,r)=>a+(+r.s||0),0)/rs.length;sum.textContent=`共 ${rs.length} 則評論 · 平均 ${avg.toFixed(1)} 顆星`+(REVIEW_URL?'':'（只有這台裝置上的評論）');
   for(const r of rs.slice().reverse()){const d=document.createElement('div');d.className='revItem';const st=document.createElement('span');st.className='st';const k=Math.max(0,Math.min(5,+r.s|0));st.textContent='★'.repeat(k)+'☆'.repeat(5-k);

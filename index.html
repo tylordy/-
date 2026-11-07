@@ -120,7 +120,7 @@ button:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
 .radarWrap{display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:6px}
 #radar{width:130px;height:130px;border-radius:50%;box-shadow:0 0 0 1px rgba(127,224,160,.35),0 0 18px rgba(0,0,0,.6)}
 @media (max-width:560px){#radar{width:96px;height:96px}}
-#compass{position:absolute;left:50%;top:calc(20px + env(safe-area-inset-top,0px));width:46px;height:46px;margin-left:-23px;border:1px solid rgba(233,223,184,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(13,11,6,.45)}
+#compass{position:absolute;left:50%;top:calc(20px + env(safe-area-inset-top,0px));width:64px;height:64px;margin-left:-32px;border:1px solid rgba(233,223,184,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(13,11,6,.45)}
 #compass i{font-style:normal;color:var(--sodium);font-size:20px;line-height:1;display:block}
 #flash{background:#fff7e0;opacity:0}
 #black{background:#000;opacity:0}
@@ -189,7 +189,7 @@ button:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
       <div id="shardHud" class="shardHud">◆ <span id="shardNum">0</span><em id="shardPop"></em></div>
       <div id="itemHud"></div>
     </div>
-    <div id="compass" hidden><i>▲</i></div>
+    <div id="compass" hidden><i><svg width="24" height="48" viewBox="0 0 24 48" aria-hidden="true"><path d="M12 1 L23 21 L16 21 L16 47 L8 47 L8 21 L1 21 Z" fill="#f0cf3a" stroke="#14110a" stroke-width="1.6" stroke-linejoin="miter"/></svg></i></div>
     <div class="corner" id="bl">
       <div class="meter" id="mStam"><span class="lab">體力</span><b><i></i></b></div>
       <div class="meter" id="mBreath"><span class="lab">憋氣</span><b><i></i></b></div>
